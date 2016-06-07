@@ -8,8 +8,6 @@ function numoffires = modelpoiss(NT,powr,pl)
 % There are 2 layers in the forest: trees, and undergrowth.
 % This starts a fire on the ground and lets the fire run until it dies out.
 
-%WARNING: nf<=actual number of fires
-
 %%%%%%%%%%%%%%%%%%
 %%   Independent Variables   %%
 %%%%%%%%%%%%%%%%%%
@@ -23,13 +21,15 @@ function numoffires = modelpoiss(NT,powr,pl)
 scale = 1; % length of a cell, in meters
 ulambda = 2; % avg mass of underbrush
 tlambda = 1; % avg mass of trees
+Pu0 = 1; % probability of a cell having no underbrush
+Pt0 = 1; % probability of a cell having no tree
 
 % Probabilities of n starting on fire by m (Pnm)
 Puunn = 1; % unn means "nearest underbrush neighbors"
 Put = 0;
-Putnn = 0.1;
+Putnn = 0;
 Pttnn = 1;
-Ptu = 0.2;
+Ptu = 0;
 Ptunn = 0;
 
 %%%%%%%%%%%%%%%%%%
@@ -58,10 +58,19 @@ state(:,:,1,2) = poissrnd(ulambda,Nc,Nc,1,1);
 state(:,:,2,2) = poissrnd(tlambda,Nc,Nc,1,1);
 state(Nc/2,Nc/2,1,2) = 1;
 
-%start an area of underbrush on fire
-%rstate = randi(Nc,2,1);
-%state(rstate(1),rstate(2),1,1) = 1;
-%newstate(rstate(1),rstate(2),1,1) = 2;
+% Check if all cells are within their specified limits
+if (max(state(:,:,1,2))>umax || max(state(:,:,2,2))>tmax)
+  for i = 1:Nc
+    for j = 1:Nc
+      if (state(i,j,1,2)>umax)
+        state(i,j,1,2) = umax;
+      endif
+      if (state(i,j,2,2)>tmax)
+        state(i,j,2,2) = tmax;
+      endif
+    endfor
+  endfor
+endif
 
 %plot init state
 if(pl)
@@ -70,16 +79,16 @@ if(pl)
   for i =1:Nc
     for j = 1:Nc
       if (state(i,j,1,1)==0 && state(i,j,1,2) ~=0)
-        plot(i,j,'ms','MarkerSize',(18-2*powr),'MarkerFaceColor','m');hold on;
+        plot(i,j,"ms","MarkerSize",(18-2*powr),"MarkerFaceColor","m");hold on;
       end % if state(1)==0
       if(state(i,j,2,1)==0 && state(i,j,2,2) ~=0)
-        plot(i,j,'go','MarkerSize',(15-2*powr),'MarkerFaceColor','g');hold on;
+        plot(i,j,"go","MarkerSize",(15-2*powr),"MarkerFaceColor","g");hold on;
       end % if state(2)==0
       if (state(i,j,1,1)~=0 && state(i,j,1,2) ~=0)
-        plot(i,j,'r^','MarkerSize',(15-2*powr),'MarkerFaceColor','r');hold on;
+        plot(i,j,"r^","MarkerSize",(15-2*powr),"MarkerFaceColor","r");hold on;
       end % if state(1)~=1
       if (state(i,j,2,1)~=0 && state(i,j,2,2) ~=0)
-        plot(i,j,'k^','MarkerSize',(12-2*powr),'MarkerFaceColor','k');hold on;
+        plot(i,j,"k^","MarkerSize",(12-2*powr),"MarkerFaceColor","k");hold on;
       end % if state(2)~=1
     end
   end
@@ -184,21 +193,27 @@ t = t+1;
               newstate(i,j,k,1) = 0;
             endif
         end % elseif
-        
-        if(newstate(i,j,k,1)==1)
-          nf(t) = nf(t)+1;
-        endif
-        
       end %for k
     end %for j
   end % for i
   
   if(t==2)
-  %start an area of underbrush on fire
+    %start an area of underbrush on fire
     %rstate = randi(Nc,2,1);
     %newstate(rstate(1),rstate(2),1,1) = 1;
     newstate(Nc/2,Nc/2,1,1) = 1;
     nf(t) = nf(t)+1;
+    else
+      %%disp(state(:,:,1,:));
+      for i = 1:Nc
+        for j = 1:Nc
+          for k = 1:2
+            if(newstate(i,j,k,1)==1 && newstate(i,j,k,2)~=0)
+              nf(t) = nf(t)+1;
+            endif
+          endfor
+      endfor
+    endfor
   endif
   
   state = newstate;
