@@ -1,2 +1,2 @@
 # forest-fire-model
-This contains files that were created when doing research in 2016.
+This repository contains files that were created when doing research in 2016.
