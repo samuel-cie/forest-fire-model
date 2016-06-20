@@ -1,4 +1,4 @@
-function ret = modelpoiss(NT,powr,pl)
+function ret = modelpoiss(NT,ulambda,powr,prob,pl)
 
 %S Cieszynski 2016
 %Based on bakfire.m by T Skorczewski 2016
@@ -18,13 +18,11 @@ function ret = modelpoiss(NT,powr,pl)
 % pl - used to turn plotting on or off
 % output: numoffires - # of fires located in grid
 
-ulambda = 2; % avg "mass density" of underbrush (kg/m^2)
+%ulambda = 2; % avg "mass density" of underbrush (kg/m^2)
 tlambda = 0; % avg "mass density" of trees (kg/m^2)
-Pu0 = 1; % probability of a cell having no underbrush
-Pt0 = 0; % probability of a cell having no tree
 
 % Probabilities of n starting on fire by m (Pnm)
-Puunn = 1; % unn means "nearest underbrush neighbors"
+Puunn = prob; % unn means "nearest underbrush neighbors"
 Put = 0;
 Putnn = 0;
 Pttnn = 0;
@@ -44,48 +42,40 @@ fctr = 1; % for Plot code
 % 3D represents whether a cell is underbrush (1) or a tree (2).
 % 4D stores the values for whether on fire (1) and mass of cell (2).
 state = zeros(Nc,Nc,2,2);
-newstate = zeros(Nc,Nc,2,2);
+
+vector11 = zeros(Nc^2,1);
+vector12 = zeros(Nc^2,1);
+vector21 = zeros(Nc^2,1);
+vector22 = zeros(Nc^2,1);
+newvector11 = zeros(Nc^2,1);
+newvector12 = zeros(Nc^2,1);
+newvector21 = zeros(Nc^2,1);
+newvector22 = zeros(Nc^2,1);
+
+%disp(vector12);
+
 nf = zeros(NT,1); %# of cells on fire
 cb = zeros(NT,1); % total # of cells started on fire
-cb0 = 0; % initial # of cells that are empty
+
 
 %%%%%%%%%%%%%%%%%%
 %%%%   Initial State  %%%%%%
 %%%%%%%%%%%%%%%%%%
 
 % Provde an initial mass to all cells
-state(:,:,1,2) = poissrnd(ulambda,Nc,Nc,1,1);
-state(:,:,2,2) = poissrnd(tlambda,Nc,Nc,1,1);
+vector12 = poissrnd(ulambda,Nc^2,1);
+vector22 = poissrnd(tlambda,Nc^2,1);
 
-% Check if all cells are within their specified limits.
-% Also apply probability of cell being empty.
-for i = 1:Nc
-    for j = 1:Nc
-    % Erase some cells
-      if(rand>Pu0)
-        state(i,j,1,2) = 0;
-      endif
-      if(rand>Pt0)
-        state(i,j,2,2) = 0;
-      endif
-      
-      % Check for empty cells
-      if(state(i,j,1,1)==1 || state(i,j,1,2)==0)
-        cb0 = cb0+1;
-      endif
-      if(state(i,j,2,1)==1 || state(i,j,2,2)==0)
-        cb0 = cb0+1;
-      endif
-    endfor
-endfor
-
-state1 = Nc/2; % randi(Nc);
-state2 = Nc/2; % randi(Nc);
-state(state1,state2,1,1) = 1; % start a fire at a random location
-state(state1,state2,1,2) = ulambda; %Make sure cell on fire has mass
+% Start a random cell on fire
+if(length(find(vector12~=0))>0)
+  idx = find(vector12~=0);
+  vector11(idx(randi(length(idx)))) = 1;
+endif
 
 %plot init state
 if(pl)
+  state(:,:,1,1) = reshape(vector11,Nc,Nc);
+  state(:,:,1,2) = reshape(vector12,Nc,Nc);
   figure(1);
   hold off;
   for i =1:Nc
@@ -109,124 +99,65 @@ if(pl)
 end
 %%%%%%%%%%%
 
-newstate = state; %Make all values match
+% Make sure both vectors are the same
+newvector11 = vector11;
+newvector12 = vector12;
+cb0 = length(find((newvector11==1 | newvector12==0)))-1; % initial # of cells that are empty
 t = 1; % define time. Note: t must be one ahead of the number of time steps because nf(0) does not exist.
 nf(1) = 1;
 cb(1) = 1;
 while nf(t)~=0 && t~=NT
   t = t+1;
-  for i =1:Nc % i and j represent the coordinates of an area of a 'forest'
-    for j = 1:Nc
-      for k = 1:2 % 1 = underbrush; 2 = trees
-        if((state(i,j,k,1)==0) && newstate(i,j,k,1)==0) %if not on fire, cells keep current value
-          newstate(i,j,k,2)=state(i,j,k,2);
-          
-        elseif(state(i,j,k,1)==1) % burn neighbors
-            
-            if(k==1)
-              if(state(i,j,2,1)==0 && state(i,j,2,2)>0 && Ptu>rand) % Ptu*state(i,j,k,2)>rand) Can mass play a role in transition?
-                newstate(i,j,2,1) = 1;
-              endif
-              if(i+1<=Nc) % If not an edge, burn
-                if(state(i+1,j,1,1)==0 && state(i+1,j,1,2)>0 && Puunn>rand) % Puunn*state(i,j,k,2)>rand)
-                  newstate(i+1,j,1,1) = 1;
-                endif
-                if(state(i+1,j,2,1)==0 && state(i+1,j,2,2)>0 && Ptunn>rand) % Ptunn*state(i,j,k,2)>rand)
-                  newstate(i+1,j,2,1) =1;
-                endif
-              endif % if i+1
-              if(i-1>=1) % If not an edge, burn
-                if(state(i-1,j,1,1)==0 && state(i-1,j,1,2)>0 && Puunn) % Puunn*state(i,j,k,2)>rand)
-                  newstate(i-1,j,1,1) = 1;
-                endif
-                if(state(i-1,j,2,1)==0 && state(i-1,j,2,2)>0 && Ptunn>rand) % Ptunn*state(i,j,k,2)>rand)
-                  newstate(i-1,j,2,1) = 1;
-                endif
-              endif % if i-1
-              if(j+1<=Nc) % If not an edge, burn
-                if(state(i,j+1,1,1)==0 && state(i,j+1,1,2)>0 && Puunn>rand) % Puunn*state(i,j,k,2)>rand)
-                  newstate(i,j+1,1,1) = 1;
-                endif
-                if(state(i,j+1,2,1)==0 && state(i,j+1,2,2)>0 && Ptunn) % Ptunn*state(i,j,k,2)>rand)
-                  newstate(i,j+1,2,1) = 1;
-                endif
-              endif % if j+1
-              if(j-1>=1) % If not an edge, burn
-                if(state(i,j-1,1,1)==0 && state(i,j-1,1,2)>0 && Puunn>rand) % Puunn*state(i,j,k,2)>rand)
-                  newstate(i,j-1,1,1) = 1;
-                endif
-                if(state(i,j-1,2,1)==0 && state(i,j-1,2,2)>0 && Ptunn>rand) % Ptunn*state(i,j,k,2)>rand)
-                  newstate(i,j-1,2,1) = 1;
-                endif
-              endif % if j-1
-            endif % if k==1
-            
-            if(k==2)
-              if(state(i,j,1,1)==0 && state(i,j,1,2)>0 && Put>rand) % Put*state(i,j,k,2)>rand)
-                newstate(i,j,1,1) = 1;
-              endif
-              if(i+1<=Nc) % If not an edge, burn
-                if(state(i+1,j,1,1)==0 && state(i+1,j,1,2)>0 && Putnn>rand) % Putnn*state(i,j,k,2)>rand)
-                  newstate(i+1,j,1,1) = 1;
-                endif
-                if(state(i+1,j,2,1)==0 && state(i+1,j,2,2)>0 && Pttnn>rand) % Pttnn*state(i,j,k,2)>rand)
-                  newstate(i+1,j,2,1) = 1;
-                endif
-              endif % if i+1
-              if(i-1>=1) % If not an edge, burn
-                if(state(i-1,j,1,1)==0 && state(i-1,j,1,2)>0 && Putnn>rand) % Putnn*state(i,j,k,2)>rand)
-                  newstate(i-1,j,1,1) = 1;
-                endif
-                if(state(i-1,j,2,1)==0 && state(i-1,j,2,2)>0 && Pttnn>rand) % Pttnn*state(i,j,k,2)>rand)
-                  newstate(i-1,j,2,1) = 1;
-                endif
-              endif % if i-1
-              if(j+1<=Nc) % If not an edge, burn
-                if(state(i,j+1,1,1)==0 && state(i,j+1,1,2)>0 && Putnn>rand) % Putnn*state(i,j,k,2)>rand)
-                  newstate(i,j+1,1,1) = 1;
-                endif
-                if(state(i,j+1,2,1)==0 && state(i,j+1,2,2)>0 && Pttnn>rand) % Pttnn*state(i,j,k,2)>rand)
-                  newstate(i,j+1,2,1) = 1;
-                endif
-              endif % if j+1
-              if(j-1>=1) % If not an edge, burn
-                if(state(i,j-1,1,1)==0 && state(i,j-1,1,2)>0 && Putnn>rand) % Putnn*state(i,j,k,2)>rand)
-                  newstate(i,j-1,1,1) = 1;
-                endif
-                if(state(i,j-1,2,1)==0 && state(i,j-1,2,2)>0 && Pttnn>rand) % Pttnn*state(i,j,k,2)>rand)
-                  newstate(i,j-1,2,1) = 1;
-                endif
-              endif % if j-1
-            endif % if k==2
-            
-            newstate(i,j,k,2) = state(i,j,k,2)-1;
-            if(newstate(i,j,k,2)<1)
-              newstate(i,j,k,1) = 0;
-            endif
-        end % elseif
-      end %for k
-    end %for j
-  end % for i
   
-  for i = 1:Nc % Loop through all cells
-    for j = 1:Nc
-      for k = 1:2
-        if(newstate(i,j,k,1)==1 && newstate(i,j,k,2)~=0)
-          nf(t) = nf(t)+1; % count # of cells on fire
-        endif
-        if(newstate(i,j,k,1)==1 || newstate(i,j,k,2)==0)
-          cb(t) = cb(t)+1; % count total # of cells burned
-        endif
-      endfor
-    endfor
-  endfor
+  % Make boundaries not periodic
+  vector11j_1 = vector11;
+  vector11j_1(Nc:Nc:end) = 0;
+  vector11j1 = vector11;
+  vector11j1(Nc+1:Nc:end) = 0;
+  
+  vector21j_1 = vector21;
+  vector21j_1(Nc:Nc:end) = 0;
+  vector21j1 = vector21;
+  vector21j1(Nc+1:Nc:end) = 0;
+  
+  %% Burn Underbrush (directions correspond to plot)
+  % burn cell above
+  newvector11([zeros(Nc,1);vector11(1:end-Nc)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
+  % burn cell below
+  newvector11([vector11(1+Nc:end);zeros(Nc,1)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
+  % burn cell to the left
+	newvector11([0;vector11j_1(1:end-1)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
+  % burn cell to the right
+	newvector11([vector11j1(2:end);0]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
+  
+  %% Burn Trees (directions correspond to plot)
+  % burn cell above
+  newvector21([zeros(Nc,1);vector21(1:end-Nc)]==1 & vector21==0 & vector22>0 & Puunn>rand) = 1;
+  % burn cell below
+  newvector21([vector21(1+Nc:end);zeros(Nc,1)]==1 & vector21==0 & vector22>0 & Puunn>rand) = 1;
+  % burn cell to the left
+	newvector21([0;vector21j_1(1:end-1)]==1 & vector21==0 & vector22>0 & Puunn>rand) = 1;
+  % burn cell to the right
+	newvector21([vector21j1(2:end);0]==1 & vector21==0 & vector22>0 & Puunn>rand) = 1;
+  
+  newvector12(vector11>0 & vector12>0) -=1;
+  newvector11(vector12>0 & newvector12==0) = 0;
+  
+  newvector22(vector21>0 & vector22>0) -=1;
+  newvector21(vector22>0 & newvector22==0) = 0;
+  
+  nf(t) = length(find((newvector11==1 & newvector12~=0)));
+  cb(t) = length(find((newvector11==1 | newvector12==0)))-cb0;
   
   % carry over states, for looping
-  state = newstate;
-  
-  cb(t) = cb(t)-cb0;
+	vector11 = newvector11;
+	vector12 = newvector12;
+  vector21 = newvector21;
+  vector22 = newvector22;
   
   if(pl)
+  state(:,:,1,1) = reshape(vector11,Nc,Nc);
+  state(:,:,1,2) = reshape(vector12,Nc,Nc);
     if(mod(t,1)==0)    
       figure(1);
       hold off;
@@ -254,7 +185,7 @@ end %end time loop
 
 ret.t = t-1;
 % first value is nf(0), or the initial conditions.
-ret.numoffires = nf;
-ret.burnedcells = cb;
+ret.nf = nf;
+ret.cb = cb;
 
 end %end fcn
