@@ -1,7 +1,7 @@
-function ret = ffmodel(NT,lambda,powr,prob,pl)
+function ret = ffmodel(NT,powr,lambda,prob,pl)
 
 %{
-'brushmodel.m' is designed to model a brush fire and output time of fire, area burned, and perimeter of burned area
+'ffmodel.m' is designed to model a brush fire and output time of fire, area burned, and perimeter of burned area
 Copyright (C) 2016  Samuel Cieszynski
   
   This program is free software: you can redistribute it and/or modify
@@ -18,11 +18,11 @@ Copyright (C) 2016  Samuel Cieszynski
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
   
   
-Usage: brushmodel(NT,lambda,powr,prob,pl)
+Usage: brushmodel(NT,powr,lambda,prob,pl)
   
   NT: num of time steps. If fire dies before NT, halt
-  lambda: expected value of a Poisson dist
   powr: grid size is 2^(powr)x2^(powr)
+  lambda: expected value of a Poisson dist
   prob: prob that neighboring cells start on fire
   pl: if 1, plot matrix. If 0, don't plot
 %}
@@ -56,6 +56,8 @@ newvector12 = zeros(N^2,1);
 % Randomly give fuel to cells
 vector12 = poissrnd(lambda,N^2,1);
 
+vector12init = vector12;
+
 % Start a random cell with fuel on fire
 if(length(find(vector12~=0))>0)
   idx = find(vector12~=0);
@@ -70,19 +72,21 @@ if(pl)
   hold off;
   for i =1:N
     for j = 1:N
-      if (state(j,i,1,1)==0 && state(j,i,1,2) ~=0)
-        plot(j,i,'ms','MarkerSize',(18-2*powr),'MarkerFaceColor','m');hold on;title(['time=',num2str(0)]);
+      if (state(j,i,1,1)==0 && state(j,i,1,2)==1)
+        plot(j,i,'go','MarkerSize',(18-2*powr),'MarkerFaceColor','g');hold on;title(['time=',num2str(0)]);
       endif
-      if (state(j,i,1,1)~=0 && state(j,i,1,2) ~=0)
+      if (state(j,i,1,1)==0 && state(j,i,1,2)>1)
+        plot(j,i,'bo','MarkerSize',(18-2*powr),'MarkerFaceColor','b');hold on;
+      endif
+      if (state(j,i,1,1)~=0 && state(j,i,1,2)~=0)
         plot(j,i,'r^','MarkerSize',(15-2*powr),'MarkerFaceColor','r');hold on;
       endif
     endfor
   endfor
   axis([0 (N+1) 0 (N+1)]);drawnow
   fctr = fctr + 1;
+  saveas(figure(1),['/home/samuel/Documents/octave-output/brushfire0.png'],'png');
 endif
-
-vector12init = vector12;
 
 % Make sure both vectors are the same
 newvector11 = vector11;
@@ -104,16 +108,16 @@ while length(find(vector11==1))~=0 && t~=NT
   % Burn neighboring underbrush
   newvector11([zeros(N,1);vector11(1:end-N)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
   newvector11([vector11(1+N:end);zeros(N,1)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
-	newvector11([0;vector11j_1(1:end-1)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
-	newvector11([vector11j1(2:end);0]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
+newvector11([0;vector11j_1(1:end-1)]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
+newvector11([vector11j1(2:end);0]==1 & vector11==0 & vector12>0 & Puunn>rand) = 1;
   
   % For cells on fire, remove 1 fuel. If fuel==0, cell is no longer on fire
   newvector12(vector11>0 & vector12>0) -=1;
   newvector11(vector12>0 & newvector12==0) = 0;
   
   % carry over states, for looping
-	vector11 = newvector11;
-	vector12 = newvector12;
+vector11 = newvector11;
+vector12 = newvector12;
   
   if(pl) % If 1, plot the matrix at a regular interval
   state(:,:,1,1) = reshape(vector11,N,N);
@@ -123,10 +127,13 @@ while length(find(vector11==1))~=0 && t~=NT
       hold off;
       for i =1:N
         for j = 1:N
-         if (state(i,j,1,1)==0 && state(i,j,1,2) ~=0)
-          plot(i,j,'ms','MarkerSize',(18-2*powr),'MarkerFaceColor','m');hold on;title(['time=',num2str(t)]);
+         if (state(i,j,1,1)==0 && state(i,j,1,2)==1)
+          plot(i,j,'go','MarkerSize',(18-2*powr),'MarkerFaceColor','g');hold on;title(['time=',num2str(t)]);
         endif
-        if (state(i,j,1,1)~=0 && state(i,j,1,2) ~=0)
+        if (state(j,i,1,1)==0 && state(j,i,1,2)>1)
+          plot(j,i,'bo','MarkerSize',(18-2*powr),'MarkerFaceColor','b');hold on;
+        endif
+        if (state(i,j,1,1)~=0 && state(i,j,1,2)~=0)
             plot(i,j,'r^','MarkerSize',(15-2*powr),'MarkerFaceColor','r');hold on;
         endif
         endfor
@@ -134,8 +141,15 @@ while length(find(vector11==1))~=0 && t~=NT
     axis([0 (N+1) 0 (N+1)]);drawnow
     fctr = fctr + 1;
     endif %if(mod)
+    saveas(figure(1),['/home/samuel/Documents/octave-output/brushfire', num2str(t), '.png'],'png');
   endif  %if(pl)
 endwhile %end time loop
+
+
+%%%%%%%%%%%%%%%%
+%%  Results Calculations  %%
+%%%%%%%%%%%%%%%%
+
 
 Af = zeros(powr,1); % area of fire
 Pf = zeros(powr,1); % perimeter of fire
@@ -168,19 +182,43 @@ bc(vector12~=vector12init) = 1;
 statebc = reshape(bc,N,N);
 statePbc = statebc;
 
-%disp(statebc);
+%disp(statePbc);
+
+idx = find(bc==1);
+numofones = length(idx);
 
 for n = 1:powr
-  tempA = zeros(2^n,2^n);
-  tempP = zeros(2^n,2^n);
+  L = 2^n;
+  ratio = N/L;
+  
+  tempA = zeros(L,L);
+  idxa = zeros(L,L);
+  idxalt = zeros(L,L);
+  tempP = zeros(L,L);
   tempPbc = zeros(2^(2*n),1);
-  for i = 1:N
-    for j = 1:N
-      if(statebc(i,j)==1)
-        tempA(ceil(i/2^(powr-n)),ceil(j/2^(powr-n))) = 1;
-      endif
+  
+  % Find
+    c = zeros(numofones,1);
+    first = zeros(numofones,1);
+    altfirst = zeros(numofones,1);
+    second = zeros(numofones,1);
+    c = mod(idx,N);
+    c(c==0) = N;
+    first = ceil(c/ratio);
+    second = ceil((idx/N)/ratio);
+    
+    y = unique([first,second],"rows");
+    
+    i = y(:,1);
+    j = y(:,2);
+    
+    for k = 1:length(i)
+    tempA(i(k),j(k)) = 1;
     endfor
-  endfor
+    
+    %if(n==powr)
+    %disp(length(find(statebc==tempA)));
+    %endif
   
   tempP = tempA;
   
@@ -196,63 +234,35 @@ for n = 1:powr
     num2 = num1;
     
     tempPbcj_1 = tempPbc;
-    tempPbcj_1(2^n:2^n:end) = 0;
+    tempPbcj_1(L:L:end) = 0;
     tempPbcj1 = tempPbc;
-    tempPbcj1(2^n+1:2^n:end) = 0;
+    tempPbcj1(L+1:L:end) = 0;
     
-    tempPbc([zeros(2^n,1);tempPbc(1:end-2^n)]==2 & tempPbc==0) = 2;
-    tempPbc([tempPbc(1+2^n:end);zeros(2^n,1)]==2 & tempPbc==0)= 2;
+    tempPbc([zeros(L,1);tempPbc(1:end-L)]==2 & tempPbc==0) = 2;
+    tempPbc([tempPbc(1+L:end);zeros(L,1)]==2 & tempPbc==0) = 2;
     tempPbc([0;tempPbcj_1(1:end-1)]==2 & tempPbc==0) = 2;
     tempPbc([tempPbcj1(2:end);0]==2 & tempPbc==0) = 2;
     
     num1 = length(find(tempPbc==2));
   endwhile
-  tempP = reshape(tempPbc,2^n,2^n);
   
   Af(n) = length(find(tempA==1));
   
-  %disp('');
-  %disp(tempA);
-  %disp('');
-  %disp(tempP);
+  countPbc = zeros(2^(2*n),1);
   
-  for i = 1:2^n
-    for j = 1:2^n
-        if(tempP(i,j)==3)
-          Pf(n) = Pf(n)+1;
-        elseif(tempP(i,j)==5)
-          Pf(n)= Pf(n)+2;
-        endif
-        
-        if(tempP(i,j)==1 || tempP(i,j)==3 || tempP(i,j)==5)
-        
-        if(i+1<=2^n)
-          if(tempP(i+1,j)==2 || tempP(i+1,j)==4)
-            Pf(n) = Pf(n)+1;
-          endif
-        endif
-        
-        if(i-1>=1)
-          if(tempP(i-1,j)==2 || tempP(i-1,j)==4)
-            Pf(n) = Pf(n)+1;
-          endif
-        endif
-        
-        if(j+1<=2^n)
-          if(tempP(i,j+1)==2 || tempP(i,j+1)==4)
-            Pf(n) = Pf(n)+1;
-          endif
-        endif
-        
-        if(j-1>=1)
-          if(tempP(i,j-1)==2 || tempP(i,j-1)==4)
-            Pf(n) = Pf(n)+1;
-          endif
-        endif
-        endif
-        
-    endfor
-  endfor
+  tempPbcj_1 = tempPbc;
+  tempPbcj_1(L:L:end) = 0;
+  tempPbcj1 = tempPbc;
+  tempPbcj1(L+1:L:end) = 0;
+  
+  countPbc(tempPbc==5) = 2;
+  countPbc(tempPbc==3) = 1;
+  countPbc(([zeros(L,1);tempPbc(1:end-L)]==2 | [zeros(L,1);tempPbc(1:end-L)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbc(([tempPbc(1+L:end);zeros(L,1)]==2 | [tempPbc(1+L:end);zeros(L,1)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbc(([0;tempPbcj_1(1:end-1)]==2 | [0;tempPbcj_1(1:end-1)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbc(([tempPbcj1(2:end);0]==2 | [tempPbcj1(2:end);0]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  
+  Pf(n) = sum(countPbc);
   
 endfor
 
