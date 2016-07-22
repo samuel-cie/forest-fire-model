@@ -187,6 +187,9 @@ statePbc = statebc;
 idx = find(bc==1);
 numofones = length(idx);
 
+l = zeros(powr,1);
+w = zeros(powr,1);
+
 for n = 1:powr
   L = 2^n;
   ratio = N/L;
@@ -215,10 +218,17 @@ for n = 1:powr
     for k = 1:length(i)
     tempA(i(k),j(k)) = 1;
     endfor
-    
-    %if(n==powr)
-    %disp(length(find(statebc==tempA)));
-    %endif
+  
+  for k = 1:L
+    if(length(find(tempA(k,:)))>0)
+    l(n) +=1;
+    endif
+  endfor
+  for k = 1:L
+    if(length(find(tempA(:,k)))>0)
+    w(n) +=1;
+    endif
+  endfor
   
   tempP = tempA;
   
@@ -246,23 +256,26 @@ for n = 1:powr
     num1 = length(find(tempPbc==2));
   endwhile
   
-  Af(n) = length(find(tempA==1));
+  Af(n) = length(find(tempA==1))*(L^2/(w(n)*l(n)));
   
-  countPbc = zeros(2^(2*n),1);
+  countPbcl = zeros(2^(2*n),1);
+  countPbcw = zeros(2^(2*n),1);
   
   tempPbcj_1 = tempPbc;
   tempPbcj_1(L:L:end) = 0;
   tempPbcj1 = tempPbc;
   tempPbcj1(L+1:L:end) = 0;
   
-  countPbc(tempPbc==5) = 2;
-  countPbc(tempPbc==3) = 1;
-  countPbc(([zeros(L,1);tempPbc(1:end-L)]==2 | [zeros(L,1);tempPbc(1:end-L)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
-  countPbc(([tempPbc(1+L:end);zeros(L,1)]==2 | [tempPbc(1+L:end);zeros(L,1)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
-  countPbc(([0;tempPbcj_1(1:end-1)]==2 | [0;tempPbcj_1(1:end-1)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
-  countPbc(([tempPbcj1(2:end);0]==2 | [tempPbcj1(2:end);0]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbcl(tempPbc==5) = 1;
+  countPbcw(tempPbc==5) = 1;
+  countPbcw(tempPbc==3 & (tempPbcj_1==0 | tempPbcj1==0)) = 1;
+  countPbcl(tempPbc==3 & tempPbcj_1~=0 & tempPbcj1~=0) = 1;
+  countPbcl(([zeros(L,1);tempPbc(1:end-L)]==2 | [zeros(L,1);tempPbc(1:end-L)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbcl(([tempPbc(1+L:end);zeros(L,1)]==2 | [tempPbc(1+L:end);zeros(L,1)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbcw(([0;tempPbcj_1(1:end-1)]==2 | [0;tempPbcj_1(1:end-1)]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
+  countPbcw(([tempPbcj1(2:end);0]==2 | [tempPbcj1(2:end);0]==4) & (tempPbc==1 | tempPbc==3 | tempPbc==5)) += 1;
   
-  Pf(n) = sum(countPbc);
+  Pf(n) = sum(countPbcl)*L/l(n)+sum(countPbcw)*L/w(n);
   
 endfor
 
